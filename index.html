@@ -718,8 +718,12 @@ function showEndButtons() {
     endBtn.textContent = '结束';
     endBtn.className = 'choice';
     endBtn.onclick = () => {
-        try { localStorage.clear(); } catch(e) {}
-        try { sessionStorage.clear(); } catch(e) {}
+        try {
+            // 仅清理本项目的键，避免影响同域其他站点
+            localStorage.removeItem(SAVE_KEY); // 'avgmd_state_v1'
+            localStorage.removeItem('avgmd_choice_history_v1');
+        } catch(e) {}
+        // 使用 clearState() 设置会话开关，避免刷新后自动恢复
         try { if (typeof clearState === 'function') clearState(); } catch (e) {}
         if (typeof resetToDefault === 'function') resetToDefault();
     };
@@ -1115,8 +1119,12 @@ document.addEventListener('DOMContentLoaded', function () {
   if (btnHome) {
     btnHome.addEventListener('click', function(){
       hideMenu();
-      try { localStorage.clear(); } catch(_) {}
-      try { sessionStorage.clear(); } catch(_) {}
+      try {
+        // 仅清理 AVGmd 的存储键，保留同域其他项目的数据
+        localStorage.removeItem(SAVE_KEY);          // 'avgmd_state_v1'
+        localStorage.removeItem(HIST_KEY);          // 'avgmd_choice_history_v1'
+      } catch(_) {}
+      // 调用 clearState 以设置禁用自动加载开关，避免刷新后自动恢复
       try { if (typeof clearState === 'function') clearState(); } catch(_) {}
       if (typeof resetToDefault === 'function') resetToDefault();
     });
