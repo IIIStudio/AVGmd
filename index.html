@@ -205,6 +205,12 @@
             }
             .choice::before { top: 8px; }
         }
+        /* 隐藏全局滚动条但保留滚动功能 */
+        html, body { -ms-overflow-style: none; scrollbar-width: none; }
+        html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+        /* 隐藏遮罩层内的滚动条 */
+        #back-curtain { scrollbar-width: none; }
+        #back-curtain::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
@@ -215,10 +221,10 @@
 <div class="button-container">
     <input type="text" id="urlInput" placeholder="输入故事文本文件的URL" />
     <button id="submitButton" onclick="loadStoryFromURL()">提交</button>
-    <button onclick="selectFile()">选择TXT文件</button>
+    <button onclick="selectFile()">选择TXT/MD文件</button>
 </div>
 
-<input type="file" id="fileInput" style="display:none;" />
+<input type="file" id="fileInput" accept=".txt,.md,text/plain,text/markdown" style="display:none;" />
 
 <div id="story2">
     <h3>使用方式</h3>
@@ -352,6 +358,13 @@ function selectFile() {
     fileInput.onchange = () => {
         const file = fileInput.files[0];
         if (file) {
+            const name = (file.name || '').toLowerCase();
+            const type = (file.type || '').toLowerCase();
+            if (!(name.endsWith('.txt') || name.endsWith('.md') || type === 'text/plain' || type === 'text/markdown')) {
+                alert('仅支持 .txt 或 .md 文件');
+                fileInput.value = '';
+                return;
+            }
             const reader = new FileReader();
             reader.onload = function(e) {
                 const text = e.target.result.trim();
