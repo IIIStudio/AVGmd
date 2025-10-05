@@ -10,3 +10,7 @@
 
 ![](./image/1.jpg)
 
+## 图片
+
+![](./image/2.jpg)
+![](./image/3.jpg)
