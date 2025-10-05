@@ -14,6 +14,7 @@ https://iiistudio.github.io/AVGmd/MD/发现妻子出轨的故事.md
 
 ## 更新日志
 ### 2025年10月5日
+- 添加可以使用产生加载例如：https://iiistudio.github.io/AVGmd/?md=https://iiistudio.github.io/AVGmd/MD/发现妻子出轨的故事.md
 - 修改选择css
 ![](./image/5.jpg)
 - 修改全局css
