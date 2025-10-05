@@ -11,6 +11,21 @@
 ```
 https://iiistudio.github.io/AVGmd/MD/发现妻子出轨的故事.md
 ```
+## 更新日志
+### 2025年10月5日
+- 添加快捷键
+1. 键盘1-9对应选择，s是下一页。
+- 添加历史记录（右键标题选择历史记录，首页是清空。）
+![](./image/6.jpg)
+![](./image/7.jpg)
+- 优化刷新不会丢失记录(如果多窗口点击其他窗口刷新也会出现问题，如果不刷新继续好像是没问题。)
+- 优化图片样式使用FancyBox
+- 添加可以使用产生加载例如：https://iiistudio.github.io/AVGmd/?md=https://iiistudio.github.io/AVGmd/MD/发现妻子出轨的故事.md
+- 修改选择css
+![](./image/5.jpg)
+- 修改全局css
+![](./image/4.jpg)
+
 ## MD内容介绍
 ### 换行说明
 已场景1开头，每个场景都有编号。
@@ -44,14 +59,7 @@ https://iiistudio.github.io/AVGmd/MD/发现妻子出轨的故事.md
 ```
 ![](图片链接)
 ```
-## 更新日志
-### 2025年10月5日
-- 优化图片样式使用FancyBox
-- 添加可以使用产生加载例如：https://iiistudio.github.io/AVGmd/?md=https://iiistudio.github.io/AVGmd/MD/发现妻子出轨的故事.md
-- 修改选择css
-![](./image/5.jpg)
-- 修改全局css
-![](./image/4.jpg)
+## AI生成MD
 
 例如：让deepseek写，发给他模版（剧情需要自己修改下）
 
