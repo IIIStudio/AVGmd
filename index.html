@@ -48,9 +48,20 @@
         /* 选择按钮区域 */
         #choices {
             margin-top: 10px;
-            text-align: center;
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            align-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            perspective: 1000px;
+            width: fit-content;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
         }
-        .choice, #nextButton, .button-container button {
+        #choices .choice { margin: 10px; }
+        #nextButton, .button-container button {
             display: inline-block;
             margin: 6px;
             padding: 8px 16px;
@@ -58,16 +69,84 @@
             color: #fff;
             background: #111c32;
             border: 1px solid rgba(255,255,255,.16);
-            border-radius: 10px;
+            border-radius: 16px;
             cursor: pointer;
             transition: transform .06s ease, background .2s ease, border-color .2s ease, opacity .2s ease;
             font-weight: 600;
         }
-        .choice:hover, #nextButton:hover, .button-container button:hover {
+        /* 选项卡片样式（矩形 50x120） */
+        .choice {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 200px;
+            height: 250px;
+            padding: 24px 6px 8px; /* 顶部序号留白 */
+            font-size: 14px;
+            color: #fff;
+            background: linear-gradient(180deg, #17223d, #0f1a31);
+            border: 1px solid rgba(255,255,255,.14);
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.2;
+            word-break: break-word;
+            box-shadow: 0 16px 40px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.06) inset;
+            transform-style: preserve-3d;
+            transform: translateZ(0) rotateX(0) rotateY(0);
+            transition: transform .22s ease, box-shadow .22s ease, background .2s ease, border-color .2s ease;
+            overflow: hidden; /* 防止内容溢出 */
+        }
+        /* 顶部序号角标：使用 data-index（玻璃浅蓝渐变、内外发光） */
+        .choice::before {
+            content: attr(data-index);
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: .5px;
+            color: #0b1220;
+            background: linear-gradient(180deg, #e8f1ff, #b9d4ff 60%, #93c5fd);
+            border: 1px solid rgba(255,255,255,.55);
+            border-radius: 999px;
+            box-shadow:
+                0 6px 14px rgba(0,0,0,.35),
+                inset 0 1px 0 rgba(255,255,255,.65);
+            outline: 2px solid rgba(147,197,253,.25);
+            outline-offset: 0;
+            backdrop-filter: saturate(140%) blur(2px);
+            transition: box-shadow .2s ease, transform .2s ease, background .3s ease;
+            pointer-events: none;
+        }
+        #nextButton:hover, .button-container button:hover {
             background: #13213b;
             border-color: rgba(255,255,255,.3);
         }
-        .choice:active, #nextButton:active, .button-container button:active {
+        .choice:hover {
+            background: #13213b;
+            border-color: rgba(255,255,255,.28);
+            box-shadow: 0 18px 36px rgba(0,0,0,.38);
+        }
+        /* 两个选项：左卡左倾、右卡右倾 */
+        #choices.choices-2 .choice.pos-left:hover  { transform: translateY(-3px) rotateY(-10deg) rotateX(1deg); }
+        #choices.choices-2 .choice.pos-right:hover { transform: translateY(-3px) rotateY( 10deg) rotateX(1deg); }
+        /* 三个选项：中间后倾，两侧外倾 */
+        #choices.choices-3 .choice.pos-left:hover  { transform: translateY(-3px) rotateY(-10deg) rotateX(1deg); }
+        #choices.choices-3 .choice.pos-mid:hover   { transform: translateY(-4px) rotateX(8deg); }
+        #choices.choices-3 .choice.pos-right:hover { transform: translateY(-3px) rotateY( 10deg) rotateX(1deg); }
+        /* 其它数量：首左倾，末右倾，中间微后倾 */
+        #choices:not(.choices-2):not(.choices-3) .choice.pos-left:hover  { transform: translateY(-3px) rotateY(-10deg) rotateX(1deg); }
+        #choices:not(.choices-2):not(.choices-3) .choice.pos-right:hover { transform: translateY(-3px) rotateY( 10deg) rotateX(1deg); }
+        #choices:not(.choices-2):not(.choices-3) .choice.pos-mid:hover   { transform: translateY(-3px) rotateX(6deg); }
+        #nextButton:active, .button-container button:active {
             transform: translateY(1px);
         }
         #nextButton {
@@ -118,6 +197,13 @@
             body { padding: 16px; }
             h1 { font-size: 24px; }
             .button-container { grid-template-columns: 1fr; }
+            #choices { gap: 25px; }
+            .choice {
+                width: 100%;
+                height: 200px;
+                font-size: 15px;
+            }
+            .choice::before { top: 8px; }
         }
     </style>
 </head>
@@ -524,6 +610,47 @@ function showChoices() {
         choicesDiv.style.display = 'none'; // 如果没有选择，隐藏选择按钮
     }
 }
+</script>
+<script>
+// 覆写 showChoices：为选项按钮添加位置类，配合 CSS 产生卡片 3D 倾斜动效
+(function() {
+    if (typeof showChoices === 'function') {
+        const _origShowChoices = showChoices;
+        window.showChoices = function() {
+            const choicesDiv = document.getElementById('choices');
+            if (!choicesDiv) return _origShowChoices();
+
+            // 运行原逻辑，生成按钮
+            _origShowChoices();
+
+            // 统计并标注数量类
+            const btns = Array.prototype.slice.call(choicesDiv.querySelectorAll('button.choice'));
+            const total = btns.length;
+
+            choicesDiv.classList.remove('choices-2','choices-3','choices-4','choices-5');
+            if (total >= 2 && total <= 5) {
+                choicesDiv.classList.add('choices-' + total);
+            }
+
+            // 清理旧位置类，标注序号与位置类
+            btns.forEach(b => b.classList.remove('pos-left','pos-mid','pos-right'));
+            btns.forEach((btn, idx) => {
+                // 设置顶部显示的序号（1,2,3...）
+                btn.setAttribute('data-index', String(idx + 1));
+
+                if (total === 2) {
+                    btn.classList.add(idx === 0 ? 'pos-left' : 'pos-right');
+                } else if (total === 3) {
+                    btn.classList.add(idx === 1 ? 'pos-mid' : (idx === 0 ? 'pos-left' : 'pos-right'));
+                } else if (total > 3) {
+                    if (idx === 0) btn.classList.add('pos-left');
+                    else if (idx === total - 1) btn.classList.add('pos-right');
+                    else btn.classList.add('pos-mid');
+                }
+            });
+        };
+    }
+})();
 </script>
     <style>
         .corner-links {
