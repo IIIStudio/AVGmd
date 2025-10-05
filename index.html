@@ -225,10 +225,15 @@
 </head>
 <body>
 <h1>文本冒险游戏</h1>
+<!-- 右键菜单（仅在已加载文本后使用） -->
+<div id="h1Menu" style="position:absolute;display:none;background:rgba(15,23,42,.98);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:8px;z-index:10000;box-shadow:0 10px 30px rgba(0,0,0,.4);">
+    <button id="btnHome" style="display:block;width:140px;margin:4px 0;padding:8px 10px;background:#111c32;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:8px;cursor:pointer;">首页</button>
+    <button id="btnHistory" style="display:block;width:140px;margin:4px 0;padding:8px 10px;background:#111c32;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:8px;cursor:pointer;">历史</button>
+</div>
 <div id="story"></div>
 <div id="choices"></div>
 <button id="nextButton" onclick="showNextLine()">下一步</button>
-<div class="button-container">
+<div class="button-container" style="display:none;">
     <input type="text" id="urlInput" placeholder="输入故事文本文件的URL" />
     <button id="submitButton" onclick="loadStoryFromURL()">提交</button>
     <button onclick="selectFile()">选择TXT/MD文件</button>
@@ -236,7 +241,7 @@
 
 <input type="file" id="fileInput" accept=".txt,.md,text/plain,text/markdown" style="display:none;" />
 
-<div id="story2">
+<div id="story2" style="display:none;">
     <h3>使用方式</h3>
     场景1<br>
     这是一个故事，想看吗？<br>
@@ -330,6 +335,98 @@ let currentScene = "";
 let currentLine = 0;
 let lines = [];
 
+// 持久化支持
+let storyText = '';
+let isRestoring = false;
+const SAVE_KEY = 'avgmd_state_v1';
+
+function saveState() {
+    try {
+        // 若开启了禁用自动加载/保存的开关，则直接跳过保存
+        try { if (sessionStorage.getItem('avgmd_disable_autoload') === '1') return; } catch (e) {}
+        const h1 = document.querySelector('h1');
+        const curTitle = h1 ? h1.textContent : document.title || '文本冒险游戏';
+
+        // 本次准备写入的 storyText；优先 window.storyText
+        const newStoryText = (typeof window !== 'undefined' && typeof window.storyText !== 'undefined')
+          ? window.storyText
+          : (typeof storyText !== 'undefined' ? storyText : '');
+
+        // 读取旧存档
+        let old = null;
+        try { old = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) {}
+
+        // 当本次 storyText 为空但旧存档存在时，沿用旧的 storyText 与 title，避免覆盖有效存档
+        const finalStoryText = (newStoryText && String(newStoryText).length > 0)
+          ? newStoryText
+          : (old && old.storyText ? old.storyText : '');
+
+        const finalTitle = (curTitle && curTitle.trim().length > 0)
+          ? curTitle
+          : (old && old.title ? old.title : '文本冒险游戏');
+
+        // 若仍然拿不到文本，放弃保存，避免写入空存档
+        if (!finalStoryText) {
+            return;
+        }
+
+        // 场景保护：若处于恢复保护期且当前场景可疑，则沿用旧场景
+        let finalScene = currentScene;
+        const nowTs = Date.now ? Date.now() : new Date().getTime();
+        const guardOn = (typeof window !== 'undefined' && typeof window.restoreGuardUntil !== 'undefined')
+          ? (nowTs < window.restoreGuardUntil)
+          : false;
+        if (guardOn && old && old.currentScene && (!finalScene || finalScene === '场景1')) {
+            finalScene = old.currentScene;
+        }
+
+        // 若与旧存档完全一致，跳过保存，避免不必要写入
+        if (old
+            && old.title === finalTitle
+            && old.storyText === finalStoryText
+            && old.currentScene === finalScene
+            && old.currentLine === currentLine) {
+            return;
+        }
+
+        // 版本号与时间戳（用于多窗口“以最新为准”）
+        const prevVer = (old && typeof old.version === 'number') ? old.version : 0;
+        const version = prevVer + 1;
+        const updatedAt = Date.now ? Date.now() : (new Date().getTime());
+
+        const state = {
+            title: finalTitle,
+            storyText: finalStoryText,
+            currentScene: finalScene,
+            currentLine,
+            version,
+            updatedAt
+        };
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+        try { window.lastVersion = (typeof state.version === 'number') ? state.version : (window.lastVersion || 0); } catch (e) {}
+        try { window.lastUpdatedAt = (typeof state.updatedAt === 'number') ? state.updatedAt : (window.lastUpdatedAt || (Date.now ? Date.now() : new Date().getTime())); } catch (e) {}
+    } catch (e) {
+        console.warn('保存进度失败：', e);
+    }
+}
+function loadState() {
+    try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch (e) {
+        console.warn('读取进度失败：', e);
+        return null;
+    }
+}
+function clearState() {
+    try {
+        localStorage.removeItem(SAVE_KEY);
+        // 设置禁用自动加载开关，防止刷新后再次自动恢复/加载
+        sessionStorage.setItem('avgmd_disable_autoload', '1');
+    } catch (e) {}
+}
+
 // 标题设定与解析
 function setGameTitle(title) {
     const h1 = document.querySelector('h1');
@@ -382,6 +479,10 @@ function selectFile() {
             reader.onload = function(e) {
                 const text = e.target.result.trim();
                 parseStory(text);
+                try { window.storyText = text; } catch (e) {}
+                try { storyText = text; } catch (e) {}
+                // 清除禁用开关，恢复正常持久化
+                try { sessionStorage.removeItem('avgmd_disable_autoload'); } catch (e) {}
                 // 根据本地文件名设置标题
                 setGameTitle(deriveTitleFromFileName(file.name));
                 currentScene = '场景1';
@@ -391,6 +492,7 @@ function selectFile() {
                 document.getElementById('story2').style.display = 'none';
                 const btnWrap = document.querySelector('.button-container');
                 if (btnWrap) btnWrap.style.display = 'none';
+                try { if (typeof saveState === 'function') saveState(); } catch (e) {}
             };
             reader.readAsText(file);
         }
@@ -399,12 +501,46 @@ function selectFile() {
 
 // 监听键盘事件
 document.addEventListener('keydown', function(event) {
+    // 若在输入框/可编辑区域内，忽略快捷键
+    const ae = document.activeElement;
+    const isTyping = ae && (
+        ae.tagName === 'INPUT' ||
+        ae.tagName === 'TEXTAREA' ||
+        ae.isContentEditable
+    );
+    if (isTyping) return;
+
+    // Enter：沿用原有逻辑
     if (event.key === 'Enter') {
         if (document.activeElement === document.getElementById('urlInput')) {
             loadStoryFromURL();
         } else {
             showNextLine();
         }
+        return;
+    }
+
+    // S / s：下一页
+    if (event.key === 's' || event.key === 'S') {
+        event.preventDefault();
+        try { showNextLine(); } catch(_) {}
+        return;
+    }
+
+    // 数字键 1-9（含小键盘）：选择对应选项
+    // event.key 对于顶部数字与小键盘数字通常都是 '1'..'9'
+    if (/^[1-9]$/.test(event.key)) {
+        event.preventDefault();
+        try {
+            const choicesDiv = document.getElementById('choices');
+            if (!choicesDiv) return;
+            const btns = Array.prototype.slice.call(choicesDiv.querySelectorAll('button.choice'));
+            const idx = parseInt(event.key, 10) - 1;
+            if (idx >= 0 && idx < btns.length && typeof btns[idx].click === 'function') {
+                btns[idx].click();
+            }
+        } catch(_) {}
+        return;
     }
 });
 
@@ -425,6 +561,10 @@ function loadStoryFromURL() {
         })
         .then(text => {
             parseStory(text);
+            try { window.storyText = text; } catch (e) {}
+            try { storyText = text; } catch (e) {}
+            // 清除禁用开关，恢复正常持久化
+            try { sessionStorage.removeItem('avgmd_disable_autoload'); } catch (e) {}
             // 根据 URL 文件名设置标题
             setGameTitle(deriveTitleFromURL(url));
             currentScene = '场景1';
@@ -434,6 +574,7 @@ function loadStoryFromURL() {
             document.getElementById('story2').style.display = 'none';
             const btnWrap = document.querySelector('.button-container');
             if (btnWrap) btnWrap.style.display = 'none';
+            try { if (typeof saveState === 'function') saveState(); } catch (e) {}
         })
         .catch(error => {
             console.error('加载失败：', error);
@@ -577,7 +718,10 @@ function showEndButtons() {
     endBtn.textContent = '结束';
     endBtn.className = 'choice';
     endBtn.onclick = () => {
-        resetToDefault();
+        try { localStorage.clear(); } catch(e) {}
+        try { sessionStorage.clear(); } catch(e) {}
+        try { if (typeof clearState === 'function') clearState(); } catch (e) {}
+        if (typeof resetToDefault === 'function') resetToDefault();
     };
     choicesDiv.appendChild(endBtn);
 
@@ -624,9 +768,11 @@ function showChoices() {
                 button.textContent = choiceText;
                 button.className = 'choice';
                 button.onclick = () => {
+                    try { if (typeof addChoiceHistory === 'function') addChoiceHistory(choiceText, nextScene); } catch(_) {}
                     currentScene = nextScene;
                     currentLine = 0; // 重置行数
                     displayScene(currentScene);
+                    try { if (typeof saveState === 'function') saveState(); } catch (e) {}
                 };
                 choicesDiv.appendChild(button);
             }
@@ -681,6 +827,24 @@ function showChoices() {
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   try {
+    // 若禁用开关存在，直接显示引导与输入区，跳过恢复与URL加载
+    if (sessionStorage.getItem('avgmd_disable_autoload') === '1') {
+      const guideDiv = document.getElementById('story2');
+      const btnWrap = document.querySelector('.button-container');
+      const storyDiv = document.getElementById('story');
+      if (storyDiv) { storyDiv.style.display = 'none'; storyDiv.innerHTML = ''; }
+      if (guideDiv) guideDiv.style.display = 'block';
+      if (btnWrap) btnWrap.style.display = 'block';
+      return;
+    }
+    // 如果已有本地存档，则优先恢复并跳过 URL 自动加载
+    const saved = localStorage.getItem('avgmd_state_v1');
+    if (saved) {
+      // 存档恢复逻辑在后续“刷新持久化补丁”脚本中执行，这里直接跳过
+      return;
+    }
+
+    // 若无存档，尝试 URL 参数直达
     const params = new URLSearchParams(window.location.search);
     const md = params.get('md') || params.get('url');
     if (md) {
@@ -689,11 +853,335 @@ document.addEventListener('DOMContentLoaded', function () {
       if (typeof loadStoryFromURL === 'function') {
         loadStoryFromURL();
       }
+      return;
     }
+
+    // 无存档且无URL：显示引导与输入区（初始默认隐藏避免闪烁）
+    const guideDiv = document.getElementById('story2');
+    const btnWrap = document.querySelector('.button-container');
+    if (guideDiv) guideDiv.style.display = 'block';
+    if (btnWrap) btnWrap.style.display = 'block';
   } catch (e) {
     console.error('URL 参数解析失败：', e);
   }
 });
+</script>
+<script>
+// 刷新持久化补丁（不侵入原函数实现）
+(function () {
+  const w = window;
+
+  // 保障已有对象
+  try { if (typeof w.storyText === 'undefined') w.storyText = ''; } catch (e) {}
+
+  // 包装 parseStory：记录原始文本
+  if (typeof w.parseStory === 'function') {
+    const _origParseStory = w.parseStory;
+    w.parseStory = function (text) {
+      try { w.storyText = text; } catch (e) {}
+      try { storyText = text; } catch (e) {}
+      return _origParseStory.call(this, text);
+    };
+  }
+
+  // 包装 displayScene：展示场景后保存
+  if (typeof w.displayScene === 'function') {
+    const _origDisplayScene = w.displayScene;
+    w.displayScene = function (scene) {
+      const r = _origDisplayScene.call(this, scene);
+      try { if (!w.isRestoring && typeof w.saveState === 'function') w.saveState(); } catch (e) {}
+      return r;
+    };
+  }
+
+  // 包装 showNextLine：推进一行后保存
+  if (typeof w.showNextLine === 'function') {
+    const _origShowNextLine = w.showNextLine;
+    w.showNextLine = function () {
+      // 场景级存档：不在逐行推进时保存，防止把行进度覆盖为非零
+      return _origShowNextLine.call(this);
+    };
+  }
+
+  // 包装 resetToDefault：清除保存
+  if (typeof w.resetToDefault === 'function') {
+    const _origReset = w.resetToDefault;
+    w.resetToDefault = function () {
+      try { if (typeof w.clearState === 'function') w.clearState(); } catch (e) {}
+      return _origReset.call(this);
+    };
+  }
+
+  // 优先从本地存储恢复：可立即执行，也会在 DOMContentLoaded 兜底执行
+  function restoreFromLocal() {
+    try {
+      const raw = localStorage.getItem('avgmd_state_v1');
+      if (!raw) return false;
+      const saved = JSON.parse(raw);
+      if (!saved || !saved.storyText) return false;
+
+      // 记录当前存档版本/时间用于跨窗口比较（时间戳优先）
+      try { w.lastVersion = (typeof saved.version === 'number') ? saved.version : 0; } catch (e) {}
+      try { w.lastUpdatedAt = (typeof saved.updatedAt === 'number') ? saved.updatedAt : ((Date.now ? Date.now() : new Date().getTime())); } catch (e) {}
+      // 标记恢复流程，避免在恢复过程中触发自动保存
+      w.isRestoring = true;
+
+      // 显式填充 storyText，全局与 window 均设置，保证后续 saveState 能读到
+      try { w.storyText = saved.storyText; } catch (e) {}
+      try { storyText = saved.storyText; } catch (e) {}
+
+      if (typeof w.parseStory === 'function') w.parseStory(saved.storyText);
+      if (typeof w.setGameTitle === 'function') w.setGameTitle(saved.title || '文本冒险游戏');
+      w.currentScene = saved.currentScene || '场景1';
+
+      if (typeof w.displayScene === 'function') w.displayScene(w.currentScene);
+
+      // 场景级恢复：不回放到具体行，始终从场景开头开始
+
+      // UI：隐藏引导与输入区，显示故事
+      const guideDiv = document.getElementById('story2');
+      const btnWrap = document.querySelector('.button-container');
+      const storyDiv = document.getElementById('story');
+      if (guideDiv) guideDiv.style.display = 'none';
+      if (btnWrap) btnWrap.style.display = 'none';
+      if (storyDiv) storyDiv.style.display = 'block';
+
+      // 恢复结束：开启2秒保护期，防止误写回初始场景；再标准化保存一次
+      w.isRestoring = false;
+      try { w.restoreGuardUntil = (Date.now ? Date.now() : new Date().getTime()) + 2000; } catch (e) {}
+      if (typeof w.saveState === 'function') w.saveState();
+
+      return true;
+    } catch (e) {
+      console.error('恢复失败：', e);
+      return false;
+    }
+  }
+
+  // 先尝试立即恢复；若此时文档尚未就绪，再在 DOMContentLoaded 执行一次兜底
+  (function ensureRestore() {
+    const restored = restoreFromLocal();
+    if (!restored) {
+      document.addEventListener('DOMContentLoaded', function () {
+        restoreFromLocal();
+      });
+    }
+  })();
+
+  // 跨窗口监听：当其它窗口写入更新的存档时，本窗口自动切到最新
+  window.addEventListener('storage', function (e) {
+    if (e && e.key === 'avgmd_state_v1' && e.newValue) {
+      try {
+        const incoming = JSON.parse(e.newValue);
+        if (!incoming) return;
+        const incomingTs = (typeof incoming.updatedAt === 'number') ? incoming.updatedAt : 0;
+        const curTs = (typeof w.lastUpdatedAt === 'number') ? w.lastUpdatedAt : ((typeof w.lastVersion === 'number') ? w.lastVersion : 0);
+        if (incomingTs > curTs) {
+          try { w.lastUpdatedAt = incomingTs; } catch (_) {}
+          try { w.lastVersion = (typeof incoming.version === 'number') ? incoming.version : (w.lastVersion || 0); } catch (_) {}
+          w.isRestoring = true;
+          try { w.storyText = incoming.storyText; } catch (_) {}
+          try { storyText = incoming.storyText; } catch (_) {}
+          if (typeof w.parseStory === 'function') w.parseStory(incoming.storyText);
+          if (typeof w.setGameTitle === 'function') w.setGameTitle(incoming.title || '文本冒险游戏');
+          w.currentScene = incoming.currentScene || '场景1';
+          if (typeof w.displayScene === 'function') w.displayScene(w.currentScene);
+          const guideDiv = document.getElementById('story2');
+          const btnWrap = document.querySelector('.button-container');
+          const storyDiv = document.getElementById('story');
+          if (guideDiv) guideDiv.style.display = 'none';
+          if (btnWrap) btnWrap.style.display = 'none';
+          if (storyDiv) storyDiv.style.display = 'block';
+          w.isRestoring = false;
+        }
+      } catch (_) {}
+    }
+  });
+
+  // 离开前兜底保存
+  window.addEventListener('beforeunload', function () {
+    try { if (typeof w.saveState === 'function') w.saveState(); } catch (e) {}
+  });
+})();
+</script>
+<!-- 历史弹窗 -->
+<style>
+  #historyModal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10001; background: rgba(0,0,0,.5); }
+  #historyModal .modal { background: #0f172a; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; width: min(680px, 92vw); max-height: 80vh; overflow: auto; padding: 16px; color: #fff; box-shadow: 0 18px 36px rgba(0,0,0,.38); scrollbar-width: none; }
+  #historyModal .modal header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  #historyModal .modal .close { cursor: pointer; background: transparent; border: none; color: #fff; font-size: 20px; padding: 4px 8px; border-radius: 6px; }
+  #historyModal .modal .close:hover { background: rgba(255,255,255,.08); }
+  .history-list { display: grid; gap: 10px; }
+  .history-list .history-item, .history-go {
+      display: inline-block; width: 100%; text-align: center;
+      padding: 10px 12px; font-size: 15px; color: #fff; background: #111c32;
+      border: 1px solid rgba(255,255,255,.16); border-radius: 10px; cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .06s ease;
+  }
+  .history-list .history-item:hover, .history-go:hover { background: #13213b; border-color: rgba(255,255,255,.3); }
+  #historyModal .modal::-webkit-scrollbar { display: none; }
+  /* 预览折叠样式已移除（历史仅显示选择） */
+</style>
+<div id="historyModal" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+  <div class="modal">
+    <header>
+      <h3 id="historyTitle" style="margin:0;">历史记录</h3>
+      <button class="close" aria-label="关闭">×</button>
+    </header>
+    <div id="historyBody"></div>
+  </div>
+</div>
+<script>
+// 右键菜单与历史弹窗逻辑
+(function(){
+  const h1 = document.querySelector('h1');
+  const menu = document.getElementById('h1Menu');
+  const historyModal = document.getElementById('historyModal');
+  const histBody = document.getElementById('historyBody');
+
+  // 动态选择历史（仅记录“选择：xxx -> 场景N”）
+  const HIST_KEY = 'avgmd_choice_history_v1';
+  function readChoiceHistory() {
+    try {
+      const raw = localStorage.getItem(HIST_KEY);
+      if (!raw) return [];
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (_) { return []; }
+  }
+  function writeChoiceHistory(arr) {
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(arr || [])); } catch (_) {}
+  }
+  // 对外暴露，供 showChoices 的按钮点击时调用
+  window.addChoiceHistory = function(choiceText, scene) {
+    try {
+      const label = String(choiceText || '').trim();
+      const sc = String(scene || '').trim();
+      if (!label || !sc) return;
+      const item = { label: label + ' -> ' + sc, scene: sc, ts: Date.now ? Date.now() : (new Date().getTime()) };
+      const list = readChoiceHistory();
+      list.push(item);
+      // 只保留最近 50 条
+      writeChoiceHistory(list.slice(-50));
+    } catch (_) {}
+  };
+
+  function storyLoaded() {
+    const storyDiv = document.getElementById('story');
+    const curScene = (typeof window !== 'undefined' && window.currentScene) ? window.currentScene : '';
+    const hasWindowStory = (typeof window !== 'undefined') && window.story && Object.keys(window.story || {}).length > 0;
+    let hasGlobalStory = false;
+    try { hasGlobalStory = (typeof story !== 'undefined') && Object.keys(story || {}).length > 0; } catch(_) {}
+
+    // 判断指定场景是否存在于任一 story 容器
+    const sceneExists =
+      !!curScene && (
+        (hasWindowStory && window.story[curScene]) ||
+        (hasGlobalStory && (typeof story !== 'undefined') && story[curScene])
+      );
+
+    // 视为“已加载”的条件更宽松：故事区可见 且 (有任何内容 或 当前场景有效)
+    const storyVisible = !!(storyDiv && storyDiv.style.display !== 'none');
+    return !!(storyVisible && (hasWindowStory || hasGlobalStory || sceneExists));
+  }
+
+  function showMenu(e) {
+    if (!storyLoaded()) return; // 仅在加载文本后启用
+    e.preventDefault();
+    menu.style.display = 'block';
+    // 位置：尽量不超出窗口
+    const pad = 8;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const menuRect = { w: 160, h: 100 };
+    let x = e.clientX, y = e.clientY;
+    if (x + menuRect.w + pad > vw) x = vw - menuRect.w - pad;
+    if (y + menuRect.h + pad > vh) y = vh - menuRect.h - pad;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+  }
+  function hideMenu() { if (menu) menu.style.display = 'none'; }
+
+  if (h1) {
+    h1.addEventListener('contextmenu', showMenu);
+  }
+  document.addEventListener('click', function(e){
+    if (!menu) return;
+    if (e.target === menu || menu.contains(e.target)) return;
+    hideMenu();
+  });
+
+  // 首页：清理缓存并回到初始状态
+  const btnHome = document.getElementById('btnHome');
+  if (btnHome) {
+    btnHome.addEventListener('click', function(){
+      hideMenu();
+      try { localStorage.clear(); } catch(_) {}
+      try { sessionStorage.clear(); } catch(_) {}
+      try { if (typeof clearState === 'function') clearState(); } catch(_) {}
+      if (typeof resetToDefault === 'function') resetToDefault();
+    });
+  }
+
+  // 历史：弹窗
+  const btnHistory = document.getElementById('btnHistory');
+  if (btnHistory) {
+    btnHistory.addEventListener('click', function(){
+      hideMenu();
+      openHistoryModal();
+    });
+  }
+
+  function openHistoryModal() {
+    if (!historyModal || !histBody) return;
+    histBody.innerHTML = '';
+    const tip = document.createElement('div');
+    tip.textContent = '选择一个历史记录：';
+    tip.style.margin = '4px 0 8px';
+    const list = document.createElement('div');
+    list.className = 'history-list';
+
+    const his = readChoiceHistory().slice().sort((a,b)=> (b.ts||0)-(a.ts||0));
+    if (!his.length) {
+      histBody.appendChild(tip);
+      const empty = document.createElement('div');
+      empty.textContent = '暂无历史记录';
+      empty.style.color = '#94a3b8';
+      empty.style.textAlign = 'center';
+      empty.style.margin = '8px 0 4px';
+      histBody.appendChild(empty);
+      historyModal.style.display = 'flex';
+      return;
+    }
+    his.forEach(it => {
+      const b = document.createElement('button');
+      b.className = 'history-item';
+      b.textContent = it.label || (it.scene ? ('跳转到 ' + it.scene) : '未知记录');
+      b.addEventListener('click', function(){
+        try {
+          if (it.scene) {
+            window.currentScene = it.scene;
+            window.currentLine = 0;
+            if (typeof window.displayScene === 'function') window.displayScene(window.currentScene);
+            if (typeof window.saveState === 'function') window.saveState();
+          }
+        } catch (_) {}
+        historyModal.style.display = 'none';
+      });
+      list.appendChild(b);
+    });
+
+    histBody.appendChild(tip);
+    histBody.appendChild(list);
+    historyModal.style.display = 'flex';
+  }
+
+  // 弹窗关闭
+  const closeBtn = historyModal.querySelector('.close');
+  if (closeBtn) closeBtn.addEventListener('click', () => historyModal.style.display = 'none');
+  historyModal.addEventListener('click', function(e){
+    if (e.target === historyModal) historyModal.style.display = 'none';
+  });
+})();
 </script>
     <style>
         .corner-links {
