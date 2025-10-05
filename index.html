@@ -179,11 +179,21 @@
         }
         /* 图片缩放手势 */
         .min { max-height: 25px; }
-        .showImg { cursor: zoom-in; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); }
+        .showImg {
+            cursor: zoom-in;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,.08);
+            display: block;
+            margin: 0 auto;
+            width: 500px;
+            max-width: 90vw;
+            height: auto;
+        }
         #bigImg { cursor: zoom-out; max-width: min(90vw, 1024px); max-height: 90vh; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
         .img-container {
-            display: inline-block;
-            margin: 6px;
+            display: block;
+            margin: 10px auto;
+            text-align: center;
         }
         /* 遮罩层优化 */
         #back-curtain {
@@ -257,10 +267,13 @@
 </div>
 
 <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.11.1.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js"></script>
 <script type="text/javascript">
-// 图片点击放大
-$('.showImg').on('click', function(){
-    imgShow("#imgDiv", "#bigImg", $(this), "#back-curtain");
+$(function(){
+    if (window.jQuery && jQuery.fancybox) {
+        $('[data-fancybox]').fancybox({});
+    }
 });
 
 function imgShow(imgDiv, bigImg, _this, curtain) {
@@ -436,7 +449,7 @@ function parseStory(text) {
         const content = lines.slice(1).join('<p>').trim();
         
         // 处理 Markdown 图片
-        const processedContent = content.replace(/!\[.*?\]\((.*?)\)/g, '<div class="img-container"><img id="showImg" class="showImg min" src="$1" alt="图片" style="max-width: 100%; height: auto;"></div>');
+        const processedContent = content.replace(/!\[.*?\]\((.*?)\)/g, '<div class="img-container"><a href="$1" data-fancybox="gallery"><img class="showImg" src="$1" alt="图片"></a></div>');
         
         story[sceneName] = processedContent.split('<p>').map(line => line.replace(/\\n/g, '<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'));
     });
@@ -497,10 +510,10 @@ function showNextLine() {
         storyDiv.innerHTML = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + currentText;
         currentLine++;
 
-        // 绑定图片放大
-        $('.showImg').on('click', function() {
-            imgShow("#imgDiv", "#imgDiv #bigImg" ? "#bigImg" : "#bigImg", $(this), "#back-curtain");
-        });
+        // 初始化 FancyBox 放大
+        if (window.jQuery && jQuery.fancybox) {
+            $('[data-fancybox]').fancybox({});
+        }
 
         // 如果该行是“结束”，显示结局按钮并停止推进
         if (isEndLine(currentText)) {
