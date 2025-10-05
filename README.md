@@ -12,7 +12,9 @@ https://iiistudio.github.io/AVGmd/MD/发现妻子出轨的故事.md
 
 ## 更新日志
 ### 2025年10月5日
-- 修改css
+- 修改选择css
+![](./image/5.jpg)
+- 修改全局css
 ![](./image/4.jpg)
 
 例如：让deepseek写，发给他模版（剧情需要自己修改下）
