@@ -652,6 +652,23 @@ function showChoices() {
     }
 })();
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const md = params.get('md') || params.get('url');
+    if (md) {
+      const urlInput = document.getElementById('urlInput');
+      if (urlInput) urlInput.value = md;
+      if (typeof loadStoryFromURL === 'function') {
+        loadStoryFromURL();
+      }
+    }
+  } catch (e) {
+    console.error('URL 参数解析失败：', e);
+  }
+});
+</script>
     <style>
         .corner-links {
             position: fixed;
